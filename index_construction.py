@@ -52,3 +52,5 @@ for idx, query in queries.iterrows():
     print("Irrelevant doc count: {}".format(irrelevant_doc_count))
     print("Total AP for {}: {}".format(query['query_id'], total_ap_score))
     print()
+
+print("Static Query MAP Score: {}".format(sum(ap_scores.values()) / len(ap_scores)))
