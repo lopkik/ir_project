@@ -2,35 +2,67 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+USE_INVERTED_INDEX = True
+
 documents = pd.read_json('data/documents.json')
+keyed_documents = pd.read_json('keyed_documents.json', typ='series')
+inverted_index = pd.read_json('inverted_index.json', typ='series')
 
-vectorizer = TfidfVectorizer(stop_words='english')
-tfidf_matrix = vectorizer.fit_transform(documents['text'])
+vectorizer = TfidfVectorizer(stop_words='english', sublinear_tf=True)
 
+def highlight_query_terms(text, query_terms):
+  highlighted_text = text
+  for term in query_terms:
+    highlighted_text = highlighted_text.replace(term, "\033[92m{}\033[0m".format(term))
+  return highlighted_text
 
 while True:
   query = input("Enter your search query:\n")
+  query_terms = []
 
-  query_vector = vectorizer.transform([query])
+  sorted_doc_ids = []
 
-  print("Query Vector:")
-  print(pd.DataFrame(data=query_vector.toarray(), columns=vectorizer.get_feature_names_out()))
-  # print(query_vector)
+  if USE_INVERTED_INDEX:
+    query_vector = vectorizer.fit_transform([query])
+    query_terms = vectorizer.get_feature_names_out()
+    print("Query Term TF-IDF Values: {}".format(query_terms))
 
-  similarities = cosine_similarity(query_vector, tfidf_matrix).flatten()
-  zip_similarities = list(zip(documents['doc_id'], similarities))
-  zip_similarities.sort(key=lambda x: x[1], reverse=True)
-  sorted_doc_ids = [doc_id for doc_id, _ in zip_similarities]
+    doc_vectors = {}
+    for i, term in enumerate(query_terms):
+      for doc_id, tfidf_val in inverted_index[term]:
+        if doc_id not in doc_vectors:
+          doc_vectors[doc_id] = [0] * len(query_terms)
+        doc_vectors[doc_id][i] = tfidf_val
+    print("Document Vectors for Query Terms:")
+
+    doc_similarities = []
+    for doc_id, vector in doc_vectors.items():
+      similarity = cosine_similarity([vector], query_vector.toarray()).flatten()[0]
+      doc_similarities.append((doc_id, similarity.item()))
+    doc_similarities.sort(key=lambda x: x[1], reverse=True)
+    sorted_doc_ids = [doc_id for doc_id, _ in doc_similarities]
+  else:
+    tfidf_matrix = vectorizer.fit_transform(documents['text'])
+    query_vector = vectorizer.transform([query])
+    query_term_indices = [vectorizer.vocabulary_.get(term) for term in query.split() if term in vectorizer.vocabulary_]
+    query_terms = vectorizer.get_feature_names_out()[query_term_indices]
+
+    similarities = cosine_similarity(query_vector, tfidf_matrix).flatten()
+    zip_similarities = list(zip(documents['doc_id'], similarities))
+    zip_similarities.sort(key=lambda x: x[1], reverse=True)
+    sorted_doc_ids = [doc_id for doc_id, _ in zip_similarities]
+    
   top25 = sorted_doc_ids[:25]
 
-  # top25 = list(range(25))
   selected_start = 1
   selected_end = 5
 
   while True:
     print("'{}' Query Results ({} - {})".format(query, selected_start, selected_end))
     for i in range(selected_start - 1, selected_end):
-      print("[{}]: Document {}".format(i + 1, top25[i]))
+      print("\033[92m[{}]: Document {}".format(i + 1, top25[i]))
+      highlighted_text = highlight_query_terms(keyed_documents[top25[i]], query_terms)
+      print("\033[0m|-> {}".format(highlighted_text))
     print()
     print("'s' -> search with a new query; 'q' -> quit")
     print("'d' -> next page; 'a' -> previous page")
