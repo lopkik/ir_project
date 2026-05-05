@@ -1,22 +1,34 @@
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+documents = pd.read_json('data/documents.json')
+
+vectorizer = TfidfVectorizer(stop_words='english')
+tfidf_matrix = vectorizer.fit_transform(documents['text'])
+
 
 while True:
   query = input("Enter your search query:\n")
 
-  vectorizer = TfidfVectorizer(stop_words='english')
-  query_vector = vectorizer.fit_transform([query])
+  query_vector = vectorizer.transform([query])
 
   print("Query Vector:")
   print(pd.DataFrame(data=query_vector.toarray(), columns=vectorizer.get_feature_names_out()))
   # print(query_vector)
 
-  top25 = list(range(25))
+  similarities = cosine_similarity(query_vector, tfidf_matrix).flatten()
+  zip_similarities = list(zip(documents['doc_id'], similarities))
+  zip_similarities.sort(key=lambda x: x[1], reverse=True)
+  sorted_doc_ids = [doc_id for doc_id, _ in zip_similarities]
+  top25 = sorted_doc_ids[:25]
+
+  # top25 = list(range(25))
   selected_start = 1
   selected_end = 5
 
   while True:
-    print("{} Results ({} - {})".format(query, selected_start, selected_end))
+    print("'{}' Query Results ({} - {})".format(query, selected_start, selected_end))
     for i in range(selected_start - 1, selected_end):
       print("[{}]: Document {}".format(i + 1, top25[i]))
     print()
