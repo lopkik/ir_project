@@ -76,4 +76,5 @@ for idx, query in queries.iterrows():
   print("Total AP for {} ({}): {}".format(query['query_id'], query['text'], total_ap_score))
   print()
 
+print("AP Scores: {}".format(ap_scores))
 print("Static Query MAP Score: {}".format(sum(ap_scores.values()) / len(ap_scores)))
